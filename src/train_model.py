@@ -7,9 +7,10 @@ import input_models as im
 import torch.optim as optim
 import torch.nn as nn
 
-SEED  = 0
+SEED  = 1234
 NUM_GPUS = None
 use_cuda = torch.cuda.is_available()
+print( f"GPU available {use_cuda}" )
 
 
 def train(model_handler, num_epochs, verbose=True, dev_data=None,

@@ -14,6 +14,7 @@ NUM_GPUS = None
 use_cuda = torch.cuda.is_available()
 
 def eval(model_handler, dev_data, class_wise=False, is_test=False, correct_preds=False):
+    print(f"def eval(...,{class_wise},{is_test},{correct_preds})")
     '''
     Evaluates the given model on the given data, by computing
     macro-averaged F1, precision, and recall scores. Can also
@@ -48,6 +49,10 @@ def save_predictions(model_handler, dev_data, out_name, is_test=False, correct_p
     print("saved to {}-{}.csv".format(out_name, dev_name))
 
 
+
+    
+
+
 def predict_helper(pred_lst, pred_data):
     out_data = []
     cols = list(pred_data.data_file.columns)
@@ -76,6 +81,9 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--out', help='Ouput file name', default='')
     parser.add_argument('-v', '--score_key', help='What optimized for', required=False, default='f_macro')
     args = vars(parser.parse_args())
+    ##args = {'config_file': '../config/config-bert-joint.txt', 'trn_data': '../data/VAST/vast_train.csv', 'dev_data': '../data/VAST/vast_dev.csv', 'ckp_name': 'BEST', 'mode': 'predict', 'name': '', 'out': 'foobar', 'score_key': 'f_macro'}
+    print(args)
+
 
     torch.manual_seed(SEED)
     torch.cuda.manual_seed_all(SEED)
@@ -323,6 +331,10 @@ if __name__ == '__main__':
     model_handler.load(filename=cname)
 
     if args['mode'] == 'eval':
+        ## model_handler: <class 'model_utils.TorchModelHandler'>
+        ## dev_dataloader <class 'data_utils.DataSampler'>
+        print(f"model_handler: {type(model_handler)}")
+        print(f"dev_dataloader{type(dev_dataloader)}")
         eval(model_handler, dev_dataloader, class_wise=True, is_test=('test' in args['dev_data']))
     elif args['mode'] == 'predict':
         save_predictions(model_handler, dev_dataloader, out_name=args['out'], is_test=('test' in args['dev_data']))

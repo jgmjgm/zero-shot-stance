@@ -112,10 +112,15 @@ class JointBERTLayer(torch.nn.Module):
             item_masks = item_masks.to('cuda')
             token_type_ids = token_type_ids.to('cuda')
 
-        last_hidden, _ = self.bert_layer(input_ids=item_ids,attention_mask=item_masks,
+        #print(f"PROB inputs1: {item_ids}")
+        #print(f"PROB inputs2: {item_masks}")
+        #print(f"PROB inputs3: {token_type_ids}")
+        ##outputs = self.bert_layer(input_ids=item_ids,attention_mask=item_masks, token_type_ids=token_type_ids)
+        outputs = self.bert_layer(input_ids=item_ids,attention_mask=item_masks,
                                          token_type_ids=token_type_ids)
+        ##print(f"PROB output4: {outputs}")
         full_masks = item_masks.unsqueeze(2).repeat(1, 1, self.dim)
-        masked_last_hidden = torch.einsum('blh,blh->blh', last_hidden, full_masks)
+        masked_last_hidden = torch.einsum('blh,blh->blh', outputs[0], full_masks)
 
         max_tok_len = token_type_ids.sum(1)[0].item()
         text_no_cls_sep = masked_last_hidden[:, 1:-max_tok_len - 1, :]
@@ -169,8 +174,13 @@ class JointBERTLayerWithExtra(torch.nn.Module):
             item_masks = item_masks.to('cuda')
             token_type_ids = token_type_ids.to('cuda')
 
-        last_hidden, _ = self.bert_layer(input_ids=item_ids,attention_mask=item_masks,
-                                         token_type_ids=token_type_ids)
+        # asdf
+        #print(f"PROB inputs1: {item_ids}")
+        #print(f"PROB inputs2: {item_masks}")
+        #print(f"PROB inputs3: {token_type_ids}")
+        outputs = self.bert_layer(input_ids=item_ids,attention_mask=item_masks, token_type_ids=token_type_ids)
+        #print(f"PROB output4: {outputs}")
+        last_hidden = outputs[0]
         full_masks = item_masks.unsqueeze(2).repeat(1, 1, last_hidden.shape[2])
         masked_last_hidden = torch.einsum('blh,blh->blh', last_hidden, full_masks)
 
