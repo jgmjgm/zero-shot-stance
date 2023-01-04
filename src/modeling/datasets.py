@@ -52,7 +52,7 @@ class StanceData(Dataset):
         self.data_file['text_mask'] = [[] for _ in range(len(self.data_file))]
 
         if self.is_bert:
-            self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+            self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True, truncation=True) # added truncation = True to stop error
             print("processing BERT")
             for i in self.data_file.index:
                 row = self.data_file.iloc[i]
