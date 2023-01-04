@@ -11,7 +11,7 @@ import pandas as pd
 VECTOR_NAME = 'glove.6B.100d'
 SEED = 0
 NUM_GPUS = None
-use_cuda = False #torch.cuda.is_available()
+use_cuda = torch.cuda.is_available()
 
 def eval(model_handler, dev_data, class_wise=False, is_test=False, correct_preds=False):
     print(f"def eval(...,{class_wise},{is_test},{correct_preds})")

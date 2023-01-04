@@ -9,7 +9,7 @@ import torch.nn as nn
 
 SEED  = 1234
 NUM_GPUS = None
-use_cuda = False #torch.cuda.is_available()
+use_cuda = torch.cuda.is_available()
 print( f"GPU available {use_cuda}" )
 
 
