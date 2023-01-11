@@ -164,6 +164,9 @@ class JointBERTLayerWithExtra(torch.nn.Module):
 
     def forward(self, **kwargs):
         text_topic = kwargs['text_topic_batch']
+        print( "***forward()" )
+        print( type( text_topic ) )
+        print( text_topic )
         token_type_ids = kwargs['token_type_ids']
 
         item_ids = text_topic.type(torch.LongTensor)
@@ -175,11 +178,12 @@ class JointBERTLayerWithExtra(torch.nn.Module):
             token_type_ids = token_type_ids.to('cuda')
 
         # asdf
-        #print(f"PROB inputs1: {item_ids}")
-        #print(f"PROB inputs2: {item_masks}")
-        #print(f"PROB inputs3: {token_type_ids}")
+        print(f"PROB inputs1: {item_ids}")
+        print(f"PROB inputs1 size: {item_ids.size()}")
+        print(f"PROB inputs2: {item_masks}")
+        print(f"PROB inputs3: {token_type_ids}")
         outputs = self.bert_layer(input_ids=item_ids,attention_mask=item_masks, token_type_ids=token_type_ids)
-        #print(f"PROB output4: {outputs}")
+        print(f"PROB output4: {outputs}")
         last_hidden = outputs[0]
         full_masks = item_masks.unsqueeze(2).repeat(1, 1, last_hidden.shape[2])
         masked_last_hidden = torch.einsum('blh,blh->blh', last_hidden, full_masks)

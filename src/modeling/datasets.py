@@ -13,6 +13,8 @@ class StanceData(Dataset):
                  max_sen_len=10, max_tok_len=200, max_top_len=5, binary=False, keep_sen=False,
                  pad_val=0, truncate_data=None, is_bert=False, add_special_tokens=True,
                  **kwargs):
+        print(f"StanceData data_name:{data_name} vocab_name:{vocab_name} topic_name:{topic_name}")
+        print(f"StanceData kwargs:\n{kwargs}")
         self.data_name = data_name
         self.data_file = pd.read_csv(data_name)
         if vocab_name != None:
@@ -36,6 +38,7 @@ class StanceData(Dataset):
 
     def preprocess_data(self):
         print('preprocessing data {} ...'.format(self.data_name))
+        print( self.keep_sen )
 
         self.data_file['text_idx'] = [[] for _ in range(len(self.data_file))]
         self.data_file['topic_idx'] = [[] for _ in range(len(self.data_file))]
@@ -94,7 +97,7 @@ class StanceData(Dataset):
                 num_sens = len(text)
                 text_mask = [[1] * n for n in text_lens]
             else:
-                text = reduce(lambda x, y: x + y, text)
+                text = reduce(lambda x, y: x + y, text) # JGM - This seems like a bug!
                 text = text[:self.max_tok_len]
                 text_lens = len(text)  # compute combined text len
                 num_sens = 1
@@ -145,6 +148,8 @@ class StanceData(Dataset):
 
     def __getitem__(self, idx, corpus=None):
         row = self.data_file.iloc[idx]
+        #print( f"ROW KEYS: {row.keys()}" )
+        #print( f"Text: {row['text']}" )
 
         l = int(row['label'])
 

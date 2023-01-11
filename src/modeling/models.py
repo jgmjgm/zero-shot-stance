@@ -135,6 +135,7 @@ class TGANet(torch.nn.Module):
     ## Topic-grouped Attention Network
     def __init__(self, **kwargs):
         super(TGANet, self).__init__()
+        print( "INIT model" )
         self.use_cuda = kwargs['use_cuda']
         self.hidden_dim = kwargs['hidden_size']
         self.input_dim = kwargs['text_dim']
@@ -156,6 +157,9 @@ class TGANet(torch.nn.Module):
                          hidden_size=self.hidden_dim)
 
     def forward(self, text, topic, topic_rep, text_l):
+        print( f"MODEL text: {text}" )
+        print( f"MODEL topic_rep: {topic_rep}" )
+        print( f"MODEL text_l: {text_l}" )
         avg_text = text.sum(1) / text_l.unsqueeze(1)
 
         if topic_rep.shape[1] != topic.shape[2]:

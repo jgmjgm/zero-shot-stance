@@ -22,6 +22,8 @@ def load_vectors(vecfile, dim=300, unk_rand=True, seed=0):
 
 
 def prepare_batch(sample_batched, **kwargs):
+    print("-------------------")
+    print(f"def prepare_batch( sample_batched == {len(sample_batched)})")
     '''
     Prepares a batch of data to be used in training or evaluation. Includes the text reversed.
     :param sample_batched: a list of dictionaries, where each is a sample
@@ -38,7 +40,15 @@ def prepare_batch(sample_batched, **kwargs):
             a tensor of the token type ids (for Bert)
             a tensor with the generalized topic representations
     '''
-    text_lens = np.array([b['txt_l'] for b in sample_batched])
+    print( type( sample_batched[0] ) )
+    for b in sample_batched:
+        print( "BATCH KEYS:" )
+        print( b.keys() )
+        print( b['text'] )
+    print( sample_batched[0].keys() )
+    print( sample_batched[0]['topic'] )
+    print( sample_batched[0]['ori_topic'] )
+    text_lens = np.array([b['txt_l'] for b in sample_batched]) # JGM txt_l
     topic_batch = torch.tensor([b['topic'] for b in sample_batched])
     labels = [b['label'] for b in sample_batched]
     top_lens = [b['top_l'] for b in sample_batched]
