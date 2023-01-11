@@ -9,8 +9,37 @@ import torch.nn as nn
 
 SEED  = 1234
 NUM_GPUS = None
-use_cuda = torch.cuda.is_available()
+use_cuda = False #torch.cuda.is_available()
 print( f"GPU available {use_cuda}" )
+
+def print_args( args ):
+    print(f"PRINTING ARGS:")
+    keys = args.keys()
+    for k in keys:
+        val = args[k][1]
+        s = f"{k}: {val}"
+        if len(s) > 300:
+            s = s[:300]
+        print( s )
+
+def foo( dataloader ):
+    data = dataloader
+    data = data.get()
+
+    concat_data = []
+    labels = []
+    id_lst = []
+    for s in data:
+        #if type_lst is not None and s.get('seen', -1) not in type_lst: continue
+        concat_data.append(s['text'] + s['topic'])
+        labels.append(np.argmax(s['label']))
+        id_lst.append(s['id'])
+
+    input_data = np.array(concat_data)
+    input_labels = np.array(labels)
+
+    return input_data, input_labels, id_lst
+
 
 
 def train(model_handler, num_epochs, verbose=True, dev_data=None,
@@ -68,6 +97,8 @@ def train(model_handler, num_epochs, verbose=True, dev_data=None,
 
 
 if __name__ == '__main__':
+    SKIP = False # Skip the loading of data bc it takes a while
+
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--config_file', help='Name of the cofig data file', required=False)
     parser.add_argument('-i', '--trn_data', help='Name of the training data file', required=False)
@@ -110,8 +141,10 @@ if __name__ == '__main__':
     dev_data_kwargs = {}
 
     if 'topic_name' in config:
+        print("CONFIG !!!!!!!!!!!!!!!!!!!!!!!!")
+        print( config )
+        print("END !!!!!!!!!!!!!!!!!!!!!!!!")
         topic_vecs = np.load('{}/{}.{}.npy'.format(config['topic_path'], config['topic_name'], config.get('rep_v', 'centroids')))
-
         trn_data_kwargs['topic_rep_dict'] = '{}/{}-train.labels.pkl'.format(config['topic_path'], config['topic_name'])
         dev_data_kwargs['topic_rep_dict'] = '{}/{}-dev.labels.pkl'.format(config['topic_path'], config['topic_name'])
 
@@ -121,6 +154,8 @@ if __name__ == '__main__':
     # load training data
     if 'bert' not in config and 'bert' not in config['name']:
         vocab_name = '../resources/{}.vocab.pkl'.format(vec_name)
+        print( "VOCAB_NAME" )
+        print( vocab_name )
         data = datasets.StanceData(args['trn_data'], vocab_name,
                                    pad_val=len(vecs) - 1,
                                    max_tok_len=int(config.get('max_tok_len', '200')),
@@ -128,16 +163,23 @@ if __name__ == '__main__':
                                    keep_sen=('keep_sen' in config),
                                    **trn_data_kwargs)
     else:
-        data = datasets.StanceData(args['trn_data'], None, max_tok_len=config['max_tok_len'],
+        print( "IN HERE" )
+        data = None
+        if not SKIP:
+            data = datasets.StanceData(args['trn_data'], None, max_tok_len=config['max_tok_len'],
                                    max_top_len=config['max_top_len'], is_bert=True,
                                    add_special_tokens=(config.get('together_in', '0') == '0'),
+                                   ##keep_sen=('keep_sen' in config), #NEW jgm
                                    **trn_data_kwargs)
 
-    dataloader = data_utils.DataSampler(data,  batch_size=int(config['b']))
+    dataloader = None
+    if not SKIP:
+        dataloader = data_utils.DataSampler(data,  batch_size=int(config['b']))
 
     # load dev data if specified
     if args['dev_data'] is not None:
         if 'bert' not in config and 'bert' not in config['name']:
+            print("THIS")
             dev_data = datasets.StanceData(args['dev_data'], vocab_name,
                                                pad_val=len(vecs) - 1,
                                            max_tok_len=int(config.get('max_tok_len', '200')),
@@ -145,12 +187,17 @@ if __name__ == '__main__':
                                            keep_sen=('keep_sen' in config),
                                            **dev_data_kwargs)
         else:
-            dev_data = datasets.StanceData(args['dev_data'], None, max_tok_len=config['max_tok_len'],
+            print("THAT")
+            dev_data = None
+            if not SKIP:
+                dev_data = datasets.StanceData(args['dev_data'], None, max_tok_len=config['max_tok_len'],
                                            max_top_len=config['max_top_len'], is_bert=True,
                                            add_special_tokens=(config.get('together_in', '0') == '0'),
                                            **dev_data_kwargs)
 
-        dev_dataloader = data_utils.DataSampler(dev_data, batch_size=int(config['b']), shuffle=False)
+        dev_dataloader = None
+        if not SKIP:
+            dev_dataloader = data_utils.DataSampler(dev_data, batch_size=int(config['b']), shuffle=False)
     else:
         dev_dataloader = None
 
@@ -224,7 +271,7 @@ if __name__ == '__main__':
                                                       use_score=args['score_key'],save_ckp=(args['save_ckp'] == 1),
                                                       **kwargs)
 
-    elif 'ffnn-bert' in config['name']:
+    elif 'ffnn-bert' in config['name']: # Joint BERT (similar to author's model)
         if config.get('together_in', '0') == '1':
             batch_args = {'keep_sen': False}
             if 'topic_name' in config:
@@ -260,7 +307,12 @@ if __name__ == '__main__':
                                                       use_score=args['score_key'], save_ckp=(args['save_ckp'] == 1),
                                                       **kwargs)
 
-    elif 'tganet' in config['name']:
+
+
+
+
+    elif 'tganet' in config['name']: # Author's model asdf
+        print("Run the TGANet model!")
         batch_args = {'keep_sen': False}
         input_layer = im.JointBERTLayerWithExtra(vecs=topic_vecs, use_cuda=use_cuda,
                                                      use_both=(config.get('use_ori_topic', '1') == '1'),
@@ -288,11 +340,106 @@ if __name__ == '__main__':
                   'optimizer': optimizer,
                   'setup_fn': setup_fn}
 
+        # -------
+        # My modelling start
+        print("Run the model!")
+        filename='../checkpoints/ckp-tganet_t7-BEST.tar'
+        checkpoint = torch.load(filename)
+        #print( checkpoint )
+        model.load_state_dict( checkpoint['model_state_dict'] )
+        # TODO - load data, process and run in model
+        # if data doesn't work use dataloader
+        input_data, true_labels, id_lst = foo( dataloader ) #self.prepare_data(data, type_lst=type_lst)
+
+        batching_fn = data_utils.prepare_batch
+        samples = [i for i in dataloader]
+
+        sample_batched = samples[0]
+        print( f"BATCH ARGS: {batch_args.keys()}" )
+        args = batching_fn(sample_batched, **batch_args)
+        print( "args:" )
+        print( args.keys() )
+        print( args )
+        label_tensor = torch.tensor(args["labels"])
+
+
+        # EMBEDDING
+        embed_args = input_layer(**args) # embed model in model_utils
+        args.update(embed_args)
+
+        #suf = setup_fn(args, False)
+        # PREDICTION
+        print("START PREDICTION!")
+        print( "ARGS:" )
+        device = 'cuda' if use_cuda else 'cpu'
+        txt_E  = args['txt_E'].to(device)  # (B,E)
+        top_E  = args['top_E'].to(device)  # (B,E)
+        top_rep = args['avg_top_E'].to(device)
+        text_l = args['txt_l'].to(device)
+        print_args( args )
+
+        # PREDICTION
+        print("START PREDICTION!")
+        print( "ARGS:" )
+        model.eval()
+        ##y_pred = model( suf[0], suf[1], suf[2], suf[3] )
+        y_pred = model( txt_E, top_E, top_rep, text_l )
+        print( "y_pred" )
+        pred_labels = y_pred.argmax(axis=1)
+        print( pred_labels )
+        ##print( y_pred )
+        sys.exit()
+
+        if isinstance(y_pred, dict):
+            print("ONE")
+            y_pred_arr = y_pred['preds'].detach().cpu().numpy()
+        else:
+            print("TWO")
+            y_pred_arr = y_pred.detach().cpu().numpy()
+        ##ls = np.array(labels)
+
+        ##args['text_l'] = args['txt_l']
+        """
+        kp = ['text', 'topic', 'topic_rep', 'text_l']
+        d = []
+        for k in args.keys():
+            if k not in kp:
+                d.append(k)
+        for i in d:
+            del args[i]
+        args['topic_rep'] = 'foo'
+        print( args.keys() )
+
+        ##pred_labels = model.predict(id_lst)
+        #y_pred = model(*setup_fn(args, use_cuda))
+        y_pred = model(**args)
+        #y_pred = model(sample_batched)
+        print( "y_pred" )
+        print( y_pred )
+        """
+        sys.exit()
+        # END
+        # -------
+        
         model_handler = model_utils.TorchModelHandler(use_cuda=use_cuda,
                                                       checkpoint_path=config.get('ckp_path', 'data/checkpoints/'),
                                                       result_path=config.get('res_path', 'data/gen-stance/'),
                                                       use_score=args['score_key'], save_ckp=(args['save_ckp'] == 1),
                                                       **kwargs)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     elif 'repffnn' in config['name']:
         batch_args = {'keep_sen': False}
