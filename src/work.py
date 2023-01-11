@@ -25,11 +25,13 @@ def read_config(path="../config/config-tganet.txt"):
             config[l.strip().split(":")[0]] = l.strip().split(":")[1]
     return config
 
-# {'topic_rep_dict': '../resources/topicreps//bert_tfidfW_ward_euclidean_197-train.labels.pkl'
+train_labels = "../resources/topicreps/bert_tfidfW_ward_euclidean_197-train.labels.pkl"
+topic_rep_dict = pickle.load(open(train_labels, 'rb'))
+
 vocab_name = "../resources/glove.6B.100d.vocab.pkl"
 keep_sen = False
 is_bert = True
-add_special_tokens = True
+add_special_tokens = False
 max_sen_len=10 
 max_tok_len=200 
 max_top_len=5
@@ -73,8 +75,10 @@ def flatten(l):
     return [item for sublist in l for item in sublist]
 
 
+
+
 # Methods to use in apply
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True, truncation=True) # added truncation = True to stop error
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True, max_length=max_tok_len, truncation=True) # added truncation = True to stop error
 def mybuild(s):
     return tokenizer.build_inputs_with_special_tokens(s.text_idx, s.topic_idx)
 
@@ -91,9 +95,12 @@ def preprocess_data( data_name='../data/VAST/vast_train.csv',  ):
 
     print('preprocessing data {} ...'.format(data_name))
     if is_bert:
+        print(f"ADD SPECIAL TOKENS????? {add_special_tokens}")
         print( data_file["topic_str"] )
 
         #tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True, truncation=True) # added truncation = True to stop error
+        o = data_file.iloc[0]["text"]
+        print(f"TEXT at 0:{o}")
         print("processing BERT")
         data_file['text'] = data_file['text'].apply(json.loads) # asssumed to be deserialized list of lists
         # Shorten the text and topic data using limits from original code
@@ -106,16 +113,33 @@ def preprocess_data( data_name='../data/VAST/vast_train.csv',  ):
         data_file['num_sens'] = data_file['text'].apply(len) # count of sentences
         data_file['ori_text'] = data_file['text'].apply( lambda x: ' '.join( flatten(x) ) ) # seems to be regular sentence (lowercase,cleaned)
         data_file['text_idx'] = data_file['ori_text'].apply(
-            lambda x: tokenizer.encode(x, add_special_tokens=add_special_tokens, max_length=max_tok_len, pad_to_max_length=True)
+            lambda x: tokenizer.encode(x, add_special_tokens=add_special_tokens, max_length=max_tok_len, pad_to_max_length=True, truncation=True)
         ) # regular sentence embedded
         data_file['topic_idx'] = data_file['ori_topic'].apply(
-            lambda x: tokenizer.encode(x, add_special_tokens=add_special_tokens, max_length=max_tok_len, pad_to_max_length=True)
+            lambda x: tokenizer.encode(x, add_special_tokens=add_special_tokens, max_length=max_top_len, pad_to_max_length=True, truncation=True)
         ) # regular topic embedded
-        print( 'text_idx --------' )
-        print( type( data_file['text_idx'].values) )
+        t = data_file.iloc[0]["text_idx"]
+        print(f"********$$$$$******************length text: {len(t)} >>> {t}")
+        t = data_file.iloc[0]["topic_idx"]
+        print(f"********$$$$$******************length text: {len(t)} >>> {t}")
+
+
         data_file['text_topic_batch'] = data_file.apply( lambda x: mybuild(x), axis=1 )
         data_file['token_type_ids'] = data_file.apply( lambda x: mycreate(x), axis=1 )
+
+        #asdf
+        data_file['topic_rep_ids'] = data_file['new_id'].apply( lambda x: topic_rep_dict[x] )
+
+
+        t = data_file.iloc[0]["text_topic_batch"]
+        print(f"********$$$$$******************length text: {len(t)} >>> {t}")
+
+
         print(f"...finished pre-processing for BERT {type(data_file)}")
+        o = data_file.iloc[0]["text_idx"]
+        print(f"TEXT_IDX {len(o)} at 0:{o}")
+        o = data_file.iloc[0]["ori_text"]
+        print(f"ORI_TEXT {len(o)} at 0:{o}")
         return data_file
 
 from torch.utils.data import Dataset, DataLoader
@@ -126,36 +150,45 @@ class DataSlice(Dataset):
     def __len__(self):
         return len(self.df)
     def __getitem__(self,index):
+        print(f"DataSlice getitem ***************************************** INDEX:{index}")
         s = self.df.iloc[ index ]
-        val = self.df['text_topic_batch'].values
-        print(f"*** text_topic_batch: {val}")
-        print(f"*** text_topic_batch: {type(val)}")
+        val = s['text_topic_batch']
         val = np.array([np.array(xi,dtype=float) for xi in val])
         t = torch.from_numpy(val)
-        print(f"*** text_topic_batch: {t}")
-        print(f"*** text_topic_batch: {t.size()}")
+        print(f"***DataSlice text_topic_batch: {t.size()}")
         d = s.to_dict() #orient='records')
         nd = {}
+        nd['text_topic_batch'] = torch.tensor( t ) # Warning!
+        nd['text_idx'] = torch.tensor( s['text_idx'] )
+        nd['text'] = torch.tensor( s['text_idx'] )
+        nd['topic_idx'] = torch.tensor( s['topic_idx'] )
+        nd['topic'] = torch.tensor( s['topic_idx'] )
+        nd['token_type_ids'] = torch.tensor( s['token_type_ids'] )
+        nd['topic_rep_ids'] = torch.tensor( s['topic_rep_ids']  ) # had to lookup new_id
+        return nd
+
+        """
         for k,v in d.items():
             if k not in ['text_topic_batch','token_type_ids','text_idx','topic_idx','topic_rep_ids']:
                 continue
-            print(f"DataSlice {k} >>> {v}")
+            print(f"DataSlice {k} >>> {len(v)} >>> {v}")
             if k == 'text_topic_batch':
                 nd[ k ] = torch.tensor( t )
             else:
-                nd[ k ] = torch.tensor( v )
-        return nd
+                pass
+                #nd[ k ] = torch.tensor( v )
+        """
     def keys(self):
         return self[0].keys()
 
 
 def prepare_batch( df, **kwargs ):
     print( "prepare_batch - in work.py" )
-    topic_batch = torch.Tensor( list( df['topic_idx'].values ) ) 
-    text_batch = torch.Tensor( list( df['text_idx'].values ) )  
+    #topic_batch = torch.Tensor( list( df['topic_idx'].values ) ) 
+    #text_batch = torch.Tensor( list( df['text_idx'].values ) )  
     df['labels'] = df['label'] # From CSV
-    df['txt_l'] = df['text_idx'].apply(lambda x: sum( np.array( x ) != 0 ) ) 
-    df['top_l'] = df['topic_idx'].apply(lambda x: sum( np.array( x ) != 0 ) ) 
+    df['txt_l'] = 0 #df['text_idx'].apply(lambda x: sum( np.array( x ) != 0 ) ) 
+    df['top_l'] = 0 #df['topic_idx'].apply(lambda x: sum( np.array( x ) != 0 ) ) 
     #df['ori_text'] = df['text_s'] # from CSV
     ds = DataSlice( df )
     return ds
@@ -182,7 +215,7 @@ data_file = preprocess_data()
 
 # This will be in a loop
 if True:
-    print("Run the TGANet model!")
+
     batch_args = {'keep_sen': False}
     input_layer = im.JointBERTLayerWithExtra(vecs=topic_vecs, use_cuda=use_cuda,
                                                  use_both=(config.get('use_ori_topic', '1') == '1'),
@@ -223,24 +256,25 @@ if True:
     ##input_data, true_labels, id_lst = foo( dataloader ) #prepare_data(data, type_lst=type_lst)
 
 
-    data_file['txt_l'] = sum(data_file['text_idx']!=0)  # Count the number of non-zero word indexes
-    data_file['top_l'] = sum(data_file['topic_idx']!=0)  # Count the number of non-zero word indexes
+    #data_file['txt_l'] = sum(data_file['text_idx']!=0)  # Count the number of non-zero word indexes
+    #data_file['top_l'] = sum(data_file['topic_idx']!=0)  # Count the number of non-zero word indexes
+
     ##samples = data_file.to_dict(orient='records')
 
     #args = prepare_batch( sample_batched, **batch_args )
     ds = prepare_batch( data_file, **batch_args )
-    args = ds[0]
+    args = ds[0:2]
     print( "ARGS:" )
-    print( ds.keys() )
     print( type(args) )
+    print( args["text_topic_batch"] )
+    print( len(args["text_topic_batch"][0]) )
 
     # EMBEDDING
-    print(f"embed_args: {args}")
+    print(f"--------------------------- Embed_args: {args}")
     embed_args = input_layer(**args) # embed model in model_utils
     print( embed_args )
     args.update(embed_args)
     print("DONE to input_layer")
-    sys.exit()
 
     # PREDICTION
     print("START PREDICTION!")
